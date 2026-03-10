@@ -1,35 +1,42 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { supabase } from "@/lib/supabase";
+import { Session } from "@supabase/supabase-js";
+import { Redirect, Tabs } from "expo-router";
+import { useEffect, useState } from "react";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session ?? null);
+      setLoading(false);
+    }
+    loadSession();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setLoading(false);
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return null;
+  }
+
+  if (!session) {
+    return <Redirect href="/createUser" />;
+  }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+    <Tabs>
+      <Tabs.Screen name="index" options={{title: "Job Notes"}} />
+      <Tabs.Screen name="addNotes" options={{ title: "Add a Note"}} />
+      <Tabs.Screen name="noteDetails" options={{ title: "Note Details"}} />
+      <Tabs.Screen name="updateNote" options={{ title: "Update Note"}} />
     </Tabs>
   );
 }

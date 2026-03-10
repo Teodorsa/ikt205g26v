@@ -1,98 +1,168 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { supabase } from '@/lib/supabase';
+import { Session } from '@supabase/supabase-js';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Note = {
+  nid: string;
+  uid: string;
+  title: string;
+  last_changed: string;
+}
 
-export default function HomeScreen() {
+export default function HomeScreen() {  
+  const router = useRouter();
+  const [session, setSession] = useState<Session | null>(null)
+  const [notes, setNotes] = useState<Note[]>([])
+
+  const deleteNote = async (nid: string) => {
+    Alert.alert(
+      "Delete Note",
+      "Are you sure you want to delete this note?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase.from("notes").delete().eq("nid", nid);
+
+            if (error) {
+              console.error("Error deleting note", error);
+              return;
+            }
+
+            Alert.alert("Note deleted successfully!");
+            getNotes();
+          }
+        }
+      ]
+    )
+  }
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null))
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+    return () => sub.subscription.unsubscribe()
+    },
+  [])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (session) {
+        getNotes();
+      }
+    }, [session])
+  );
+
+  const getNotes = async () => { 
+    if(!session) return;
+    const { data, error } = await supabase.from("notes").select("nid, uid, title, last_changed").order("last_changed", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching notes", error);
+      return;
+    }
+
+    setNotes(data ?? []);
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <>
+      <Stack.Screen
+        options={{
+          title: "Job Notes",
+          headerTitleStyle: styles.topOfScreen,
+          headerRight: () => {
+            const label = session ? "Logout" : "Sign Up"
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+            return (
+              <Pressable
+                onPress={async () => {
+                  if (session) {
+                    await supabase.auth.signOut()
+                  } else {
+                    router.push("../createUser")
+                  }
+                }}
+                style={{ marginRight: 16 }}>
+                <Text style={styles.topOfScreen}>{label}</Text>
+              </Pressable>
+            )
+          },
+        }}
+      />
+
+      <View style={styles.container}>
+        <Text style={styles.header}>Notes List:</Text>
+
+        <FlatList
+          data={notes}
+          keyExtractor={(item) => item.nid}
+          ListEmptyComponent={<Text>No notes available</Text>}
+          renderItem={({ item }) => {
+            const isOwner = session?.user.id === item.uid;
+
+            return (
+              <View style={styles.noteRow}>
+                <Pressable
+                  onPress={() => router.push({pathname: "/noteDetails", params: { nid: item.nid }})}>
+                  <View style={styles.noteItem}>
+                    <Text style={styles.noteText}>{item.title}</Text>
+                  </View>
+                </Pressable>
+
+                {isOwner && (
+                  <View style={styles.buttonContainer}>
+                    <Button title="Edit" onPress={() => router.push({pathname: "/updateNote", params: { nid: item.nid }})} />
+                    <Button title="Del" onPress={() => deleteNote(item.nid)} />
+                  </View>
+                )}
+              </View>
+            )
+          }}
+        />  
+        <Button title="Add Note" onPress={() => router.push("/addNotes")} />
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { 
+  flex: 1, 
+  padding: 20, 
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  header: { 
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+   },
+   noteItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  noteText: { 
+    fontSize: 16,
+  },
+  topOfScreen: {
+    fontSize: 20,
+    fontWeight: "500",
+  },
+  noteRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    gap: 8,
   },
 });
