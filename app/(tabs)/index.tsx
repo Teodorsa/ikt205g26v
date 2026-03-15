@@ -1,14 +1,16 @@
+import { RegisterForPushNotificationsAsync } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Button, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Note = {
   nid: string;
   uid: string;
   title: string;
   last_changed: string;
+  image_url: string;
 }
 
 export default function HomeScreen() {  
@@ -44,6 +46,21 @@ export default function HomeScreen() {
     )
   }
 
+  const RegisterPushToken = async () => {
+    const token = await RegisterForPushNotificationsAsync();
+
+    if (!token) {
+      console.log("No push token available");
+      return;
+    }
+
+    const { error } = await supabase.from("userPushTokens").upsert({uid: session?.user.id, expo_push_token: token}, {onConflict: "uid"});
+
+    if (error) {
+      console.error("Error saving push token", error);
+    }
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null))
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -52,6 +69,12 @@ export default function HomeScreen() {
     return () => sub.subscription.unsubscribe()
     },
   [])
+
+  useEffect(() => {
+    if (session) {
+      RegisterPushToken();
+    }
+  }, [session])
 
   useFocusEffect(
     useCallback(() => {
@@ -63,7 +86,7 @@ export default function HomeScreen() {
 
   const getNotes = async () => { 
     if(!session) return;
-    const { data, error } = await supabase.from("notes").select("nid, uid, title, last_changed").order("last_changed", { ascending: false });
+    const { data, error } = await supabase.from("notes").select("nid, uid, title, last_changed, image_url").order("last_changed", { ascending: false });
 
     if (error) {
       console.error("Error fetching notes", error);
@@ -110,19 +133,25 @@ export default function HomeScreen() {
             const isOwner = session?.user.id === item.uid;
 
             return (
-              <View style={styles.noteRow}>
-                <Pressable
-                  onPress={() => router.push({pathname: "/noteDetails", params: { nid: item.nid }})}>
-                  <View style={styles.noteItem}>
-                    <Text style={styles.noteText}>{item.title}</Text>
-                  </View>
-                </Pressable>
+              <View style={styles.container}>
+                <View style={styles.noteRow}>
+                  <Pressable
+                    onPress={() => router.push({pathname: "/noteDetails", params: { nid: item.nid }})}>
+                    <View style={styles.noteItem}>
+                      <Text style={styles.noteText}>{item.title}</Text>
+                    </View>
+                  </Pressable>
 
-                {isOwner && (
-                  <View style={styles.buttonContainer}>
-                    <Button title="Edit" onPress={() => router.push({pathname: "/updateNote", params: { nid: item.nid }})} />
-                    <Button title="Del" onPress={() => deleteNote(item.nid)} />
-                  </View>
+                  {isOwner && (
+                    <View style={styles.buttonContainer}>
+                      <Button title="Edit" onPress={() => router.push({pathname: "/updateNote", params: { nid: item.nid }})} />
+                      <Button title="Del" onPress={() => deleteNote(item.nid)} />
+                    </View>
+                  )}
+                </View>
+
+                {item.image_url && (
+                  <Image source={{ uri: item.image_url }} style={styles.image} resizeMode="contain" />
                 )}
               </View>
             )
@@ -164,5 +193,12 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: "row",
     gap: 8,
+  },
+  image: {
+    width: "100%",
+    height: 180,
+    borderRadius: 10,
+    marginTop: 8,
+    marginBottom: 20,
   },
 });

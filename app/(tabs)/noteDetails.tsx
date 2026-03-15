@@ -1,13 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, StyleSheet, Text, View } from "react-native";
+import { Button, Image, StyleSheet, Text, View } from "react-native";
 
 type Note = {
   nid: string;
   title: string;
   text: string;
   last_changed: string;
+  image_url: string
 }
 
 export default function NoteDetails() {
@@ -49,6 +50,7 @@ export default function NoteDetails() {
         <Text style={styles.noteItem}>
           {note.text}
         </Text>
+        <Image source={{ uri: note.image_url }} style={styles.image} resizeMode="contain" />
         <Button title="Back" onPress={() => router.back()} />
       </View>
     </>
@@ -74,5 +76,12 @@ const styles = StyleSheet.create({
   topOfScreen: {
     fontSize: 20,
     fontWeight: "500",
+  },
+  image: {
+    width: "100%",
+    height: 180,
+    borderRadius: 10,
+    marginTop: 8,
+    marginBottom: 20,
   },
 });

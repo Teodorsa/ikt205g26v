@@ -19,8 +19,6 @@ export default function CreateUser() {
       password: password,
     });
 
-    console.log("session?", !!data.session)
-
     if(!error) {
       router.replace("/");
     }
