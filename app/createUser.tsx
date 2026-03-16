@@ -19,9 +19,12 @@ export default function CreateUser() {
       password: password,
     });
 
-    if(!error) {
-      router.replace("/");
+    if (error) {
+      console.error(error);
+      return;
     }
+
+    router.replace("/");
   }
 
   return (

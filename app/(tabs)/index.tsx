@@ -1,6 +1,7 @@
-import { RegisterForPushNotificationsAsync } from '@/lib/notifications';
+import { RegisterForLocalNotificationsAsync } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import * as Notifications from 'expo-notifications';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -46,21 +47,6 @@ export default function HomeScreen() {
     )
   }
 
-  const RegisterPushToken = async () => {
-    const token = await RegisterForPushNotificationsAsync();
-
-    if (!token) {
-      console.log("No push token available");
-      return;
-    }
-
-    const { error } = await supabase.from("userPushTokens").upsert({uid: session?.user.id, expo_push_token: token}, {onConflict: "uid"});
-
-    if (error) {
-      console.error("Error saving push token", error);
-    }
-  }
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null))
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -71,10 +57,63 @@ export default function HomeScreen() {
   [])
 
   useEffect(() => {
+    if (!session?.user.id) return;
+
+    const EnsureUserExistsInPublic = async () => {
+      const {error} = await supabase.from("users").upsert({uid: session.user.id});
+
+      if (error) {
+        console.error(error);
+      }
+    }
+
+    EnsureUserExistsInPublic();
+  }, [session]);
+
+  useEffect(() => {
     if (session) {
-      RegisterPushToken();
+      RegisterForLocalNotificationsAsync();
     }
   }, [session])
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const channel = supabase
+      .channel(`notifications-${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `rid=eq.${session.user.id}`,
+        },
+        async (payload) => {
+          const row = payload.new as {
+            nid: string;
+            sid: string;
+            rid: string;
+            title: string;
+          };
+
+          console.log("Notification received:", row);
+
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: row.title,
+              body: "A user added a new note",
+            },
+            trigger: null,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
 
   useFocusEffect(
     useCallback(() => {
