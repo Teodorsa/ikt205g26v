@@ -26,7 +26,6 @@ const supabase = createClient(
 Deno.serve(async (req) => {
   try {
     const payload: WebhookPayload = await req.json()
-    console.log('payload:', JSON.stringify(payload))
 
     if (payload.type !== 'INSERT') {
       return new Response(JSON.stringify({ ok: true, skipped: 'Not INSERT' }), {
@@ -38,10 +37,6 @@ Deno.serve(async (req) => {
     const note_id = record?.nid
     const sender_id = record?.uid
     const noteTitle = record?.title
-
-    console.log('note_id:', note_id)
-    console.log('sender_id:', sender_id)
-    console.log('noteTitle:', noteTitle)
 
     if (!noteTitle || !note_id || !sender_id) {
       return new Response(
@@ -58,9 +53,6 @@ Deno.serve(async (req) => {
       .select('uid')
       .neq('uid', sender_id)
 
-    console.log('users:', JSON.stringify(users))
-    console.log('usersError:', usersError)
-
     if (usersError) {
       return new Response(JSON.stringify({ supabaseError: usersError.message }), {
         status: 500,
@@ -75,16 +67,11 @@ Deno.serve(async (req) => {
       title: `New Note: ${noteTitle}`,
     }))
 
-    console.log('notifications:', JSON.stringify(notifications))
-
     if (notifications.length > 0) {
       const { data, error: insertError } = await supabase
         .from('notifications')
         .upsert(notifications)
         .select()
-
-      console.log('inserted data:', JSON.stringify(data))
-      console.log('insertError:', insertError)
 
       if (insertError) {
         return new Response(JSON.stringify({ error: insertError.message }), {
@@ -104,8 +91,6 @@ Deno.serve(async (req) => {
       }
     )
   } catch (err) {
-    console.log('FUNCTION CRASH:', err)
-
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

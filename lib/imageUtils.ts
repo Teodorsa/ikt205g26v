@@ -1,4 +1,5 @@
 import { File } from "expo-file-system";
+import { Alert } from "react-native";
 import { supabase } from "./supabase";
 
 export const ValidateImage = (asset: any) => {
@@ -29,7 +30,7 @@ export const UploadImage = async (asset: any, userId: string) => {
   const { data, error } = await supabase.storage.from("Images").upload(fileName, arrayBuffer);
 
   if (error) {
-    console.error("UploadImage error:", error);
+    Alert.alert("Image could not be uploaded, please try again");
     throw error;
   }
 

@@ -14,14 +14,17 @@ export default function Login() {
       return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
 
-    if(!error) {
-      router.replace("/");
-    };
+    if (error) {
+      Alert.alert("Login failed, please try again");
+      return;
+    }
+
+    router.replace("/");
   }
 
   return (

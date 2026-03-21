@@ -35,7 +35,7 @@ export default function HomeScreen() {
             const { error } = await supabase.from("notes").delete().eq("nid", nid);
 
             if (error) {
-              console.error("Error deleting note", error);
+              Alert.alert("Note could not be deleted, please try again");
               return;
             }
 
@@ -63,7 +63,7 @@ export default function HomeScreen() {
       const {error} = await supabase.from("users").upsert({uid: session.user.id});
 
       if (error) {
-        console.error(error);
+        Alert.alert("A database error has occured");
       }
     }
 
@@ -97,8 +97,6 @@ export default function HomeScreen() {
             title: string;
           };
 
-          console.log("Notification received:", row);
-
           await Notifications.scheduleNotificationAsync({
             content: {
               title: row.title,
@@ -128,7 +126,7 @@ export default function HomeScreen() {
     const { data, error } = await supabase.from("notes").select("nid, uid, title, last_changed, image_url").order("last_changed", { ascending: false });
 
     if (error) {
-      console.error("Error fetching notes", error);
+      Alert.alert("Note could not be fetched, please try again");
       return;
     }
 

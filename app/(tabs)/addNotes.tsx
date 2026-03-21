@@ -44,8 +44,8 @@ export default function AddNotes() {
         uid: data.user.id,
       });
 
-      if ( error ) {
-        console.error("Error adding note", error);
+      if (error) {
+        Alert.alert("Note could not be added, please try again.");
         return;
       }
 

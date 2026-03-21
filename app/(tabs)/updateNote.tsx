@@ -49,8 +49,8 @@ export default function UpdateNote() {
       last_changed: new Date().toISOString(),
     }).eq("nid", nid);
 
-    if ( error ) {
-      console.error("Error updating note", error);
+    if (error) {
+      Alert.alert("Note could not be updated, please try again");
       return;
     }
 

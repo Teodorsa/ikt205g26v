@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, Image, StyleSheet, Text, View } from "react-native";
+import { Alert, Button, Image, StyleSheet, Text, View } from "react-native";
 
 type Note = {
   nid: string;
@@ -23,7 +23,7 @@ export default function NoteDetails() {
       const { data, error } = await supabase.from("notes").select("*").eq("nid", nid).single();
 
       if (error) {
-        console.error("Error fetching note", error);
+        Alert.alert("Note could not be fetched, please try again");
         return;
       }
 
