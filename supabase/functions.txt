@@ -1,0 +1,114 @@
+A file displaying the edge function that exists in my supabase database.
+
+
+
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+interface Note {
+  nid: string
+  uid: string
+  title: string
+}
+
+interface WebhookPayload {
+  type: 'INSERT' | 'UPDATE' | 'DELETE'
+  table: string
+  record: Note
+  schema: 'public'
+  old_record: null | Note
+}
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+)
+
+Deno.serve(async (req) => {
+  try {
+    const payload: WebhookPayload = await req.json()
+    console.log('payload:', JSON.stringify(payload))
+
+    if (payload.type !== 'INSERT') {
+      return new Response(JSON.stringify({ ok: true, skipped: 'Not INSERT' }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const record = payload.record
+    const note_id = record?.nid
+    const sender_id = record?.uid
+    const noteTitle = record?.title
+
+    console.log('note_id:', note_id)
+    console.log('sender_id:', sender_id)
+    console.log('noteTitle:', noteTitle)
+
+    if (!noteTitle || !note_id || !sender_id) {
+      return new Response(
+        JSON.stringify({ error: 'Missing title, note id or sender id' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('uid')
+      .neq('uid', sender_id)
+
+    console.log('users:', JSON.stringify(users))
+    console.log('usersError:', usersError)
+
+    if (usersError) {
+      return new Response(JSON.stringify({ supabaseError: usersError.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const notifications = (users ?? []).map((user) => ({
+      nid: note_id,
+      sid: sender_id,
+      rid: user.uid,
+      title: `New Note: ${noteTitle}`,
+    }))
+
+    console.log('notifications:', JSON.stringify(notifications))
+
+    if (notifications.length > 0) {
+      const { data, error: insertError } = await supabase
+        .from('notifications')
+        .upsert(notifications)
+        .select()
+
+      console.log('inserted data:', JSON.stringify(data))
+      console.log('insertError:', insertError)
+
+      if (insertError) {
+        return new Response(JSON.stringify({ error: insertError.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        notificationsCreated: notifications.length,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  } catch (err) {
+    console.log('FUNCTION CRASH:', err)
+
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+})
